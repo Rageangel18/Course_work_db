@@ -1,0 +1,61 @@
+Table users {
+  id integer [primary key]
+  username varchar [not null, unique]
+  email varchar [not null, unique]
+  password varchar [not null]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  role varchar 
+}
+
+Table categories {
+  id serial [primary key]
+  name varchar [not null, unique]
+  description text
+}
+
+Table subcategories {
+  id serial [primary key]
+  category_id integer [ref: > categories.id]
+  name varchar [not null, unique]
+  description text
+}
+
+Table brands {
+  id serial [primary key]
+  name varchar [not null, unique]
+  manufacturer varchar [not null]
+}
+
+Table products {
+  id serial [primary key]
+  subcategory_id integer [ref: > subcategories.id]
+  name varchar [not null]
+  description text
+  price decimal(10, 2) [not null]
+  availability_status boolean [default: `TRUE`]
+}
+
+Table product_brands {
+  product_id integer [ref: > products.id]
+  brand_id integer [ref: > brands.id]
+  primary key (product_id, brand_id)
+}
+
+Table orders {
+  id serial [primary key]
+  user_id integer [ref: > users.id]
+  total_amount decimal(10, 2) [not null]
+  order_date timestamp [default: `CURRENT_TIMESTAMP`]
+  delivery_address varchar(255)
+  payment_method varchar(50)
+  status varchar(50) 
+}
+
+Table order_items {
+  id serial [primary key]
+  order_id integer [ref: > orders.id]
+  product_id integer [ref: > products.id]
+  quantity integer [not null]
+  price decimal(10, 2) [not null]
+}
+

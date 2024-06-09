@@ -1,0 +1,136 @@
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    role VARCHAR(20) DEFAULT 'regular_user' CHECK (role IN ('regular_user', 'admin'))
+);
+
+CREATE TABLE categories (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT
+);
+
+CREATE TABLE subcategories (
+    id SERIAL PRIMARY KEY,
+    category_id INTEGER REFERENCES categories(id),
+    name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT
+);
+
+CREATE TABLE products (
+    id SERIAL PRIMARY KEY,
+    subcategory_id INTEGER REFERENCES subcategories(id),
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    price DECIMAL(10, 2) NOT NULL,
+    availability_status BOOLEAN DEFAULT TRUE
+);
+
+CREATE TABLE brands (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    manufacturer VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE product_brands (
+    product_id INTEGER REFERENCES products(id),
+    brand_id INTEGER REFERENCES brands(id),
+    PRIMARY KEY (product_id, brand_id)
+);
+
+CREATE TABLE orders (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    total_amount DECIMAL(10, 2) NOT NULL,
+    order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    delivery_address VARCHAR(255),
+    payment_method VARCHAR(50),
+    status VARCHAR(50) CHECK (status IN ('pending', 'processed', 'shipped', 'delivered', 'cancelled'))
+);
+
+CREATE TABLE order_items (
+    id SERIAL PRIMARY KEY,
+    order_id INTEGER REFERENCES orders(id),
+    product_id INTEGER REFERENCES products(id),
+    quantity INTEGER NOT NULL,
+    price DECIMAL(10, 2) NOT NULL
+);
+
+CREATE INDEX idx_users_username ON users(username);
+CREATE INDEX idx_products_name ON products(name);
+CREATE INDEX idx_orders_user_id ON orders(user_id);
+CREATE INDEX idx_order_items_order_id ON order_items(order_id);
+--Product Search
+SELECT p.id, p.name, p.description, p.price, p.availability_status, b.name AS brand_name, s.name AS subcategory_name, c.name AS category_name
+FROM products p
+JOIN product_brands pb ON p.id = pb.product_id
+JOIN brands b ON pb.brand_id = b.id
+JOIN subcategories s ON p.subcategory_id = s.id
+JOIN categories c ON s.category_id = c.id
+WHERE p.name ILIKE '%search_term%' OR b.name ILIKE '%search_term%';
+--Product View
+SELECT p.id, p.name, p.description, p.price, p.availability_status, b.name AS brand_name, s.name AS subcategory_name, c.name AS category_name
+FROM products p
+JOIN product_brands pb ON p.id = pb.product_id
+JOIN brands b ON pb.brand_id = b.id
+JOIN subcategories s ON p.subcategory_id = s.id
+JOIN categories c ON s.category_id = c.id
+WHERE p.id = product_id;
+--Basket
+SELECT oi.id, p.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS total_price, p.availability_status
+FROM order_items oi
+JOIN products p ON oi.product_id = p.id
+WHERE oi.order_id = current_order_id;
+--Order Details
+SELECT o.id, o.total_amount, o.order_date, o.delivery_address, o.payment_method, o.status, u.username
+FROM orders o
+JOIN users u ON o.user_id = u.id
+WHERE o.id = order_id;
+--User Account
+SELECT u.username, u.email, u.created_at, o.id AS order_id, o.status AS order_status, o.total_amount
+FROM users u
+LEFT JOIN orders o ON u.id = o.user_id
+WHERE u.id = user_id;
+
+--Add Item to Basket
+CREATE OR REPLACE FUNCTION add_to_basket(p_order_id INTEGER, p_product_id INTEGER, p_quantity INTEGER, p_price DECIMAL) RETURNS VOID AS $$
+BEGIN
+    INSERT INTO order_items (order_id, product_id, quantity, price)
+    VALUES (p_order_id, p_product_id, p_quantity, p_price);
+END;
+$$ LANGUAGE plpgsql;
+
+--Remove Item from Basket
+CREATE OR REPLACE FUNCTION remove_from_basket(p_order_item_id INTEGER) RETURNS VOID AS $$
+BEGIN
+    DELETE FROM order_items WHERE id = p_order_item_id;
+END;
+$$ LANGUAGE plpgsql;
+
+--Update Item Quantity
+CREATE OR REPLACE FUNCTION update_item_quantity(p_order_item_id INTEGER, p_quantity INTEGER) RETURNS VOID AS $$
+BEGIN
+    UPDATE order_items SET quantity = p_quantity WHERE id = p_order_item_id;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE ROLE admin;
+CREATE ROLE regular_user;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO regular_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO admin;
+
+GRANT EXECUTE ON FUNCTION add_to_basket(INTEGER, INTEGER, INTEGER, DECIMAL) TO regular_user;
+GRANT EXECUTE ON FUNCTION remove_from_basket(INTEGER) TO regular_user;
+GRANT EXECUTE ON FUNCTION update_item_quantity(INTEGER, INTEGER) TO regular_user;
+
+GRANT EXECUTE ON FUNCTION add_to_basket(INTEGER, INTEGER, INTEGER, DECIMAL) TO admin;
+GRANT EXECUTE ON FUNCTION remove_from_basket(INTEGER) TO admin;
+GRANT EXECUTE ON FUNCTION update_item_quantity(INTEGER, INTEGER) TO admin;
+
+select * from brands
+select * from products
+select * from categories

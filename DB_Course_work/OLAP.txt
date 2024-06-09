@@ -1,0 +1,95 @@
+-- Create Dim_Customer with SCD Type 2
+CREATE TABLE Dim_Customer (
+    Customer_ID INTEGER PRIMARY KEY,
+    Name VARCHAR(100),
+    Email VARCHAR(100),
+    StartDate DATE,
+    IsCurrent BOOLEAN
+);
+
+-- Create Dim_Product
+CREATE TABLE Dim_Product (
+    Product_ID INTEGER PRIMARY KEY,
+    Name VARCHAR(100),
+    Category VARCHAR(100),
+    Subcategory VARCHAR(100),
+    Brand VARCHAR(100),
+    Price DECIMAL(10, 2)
+);
+
+
+
+-- Create Fact_Sales
+CREATE TABLE Fact_Sales (
+    Sales_ID INTEGER PRIMARY KEY,
+    Product_ID INTEGER,
+    Customer_ID INTEGER,
+    Quantity_Sold INTEGER,
+    Total_Sales DECIMAL(10, 2),
+    FOREIGN KEY (Product_ID) REFERENCES Dim_Product(Product_ID),
+    FOREIGN KEY (Customer_ID) REFERENCES Dim_Customer(Customer_ID),
+);
+select * from Fact_Sales
+
+select * from Dim_Product
+select * from Dim_Time
+select * from Dim_Customer
+alter table Dim_Customer drop column enddate
+
+alter table Fact_Sales add column CreatedAt Date
+-- Create Fact_Orders
+CREATE TABLE Fact_Orders (
+    Order_ID INTEGER PRIMARY KEY,
+    Product_ID INTEGER,
+    Customer_ID INTEGER,
+    Date_ID INTEGER,
+    Order_Quantity INTEGER,
+    Order_Total DECIMAL(10, 2),
+    FOREIGN KEY (Product_ID) REFERENCES Dim_Product(Product_ID),
+    FOREIGN KEY (Customer_ID) REFERENCES Dim_Customer(Customer_ID),
+    FOREIGN KEY (Date_ID) REFERENCES Dim_Time(Date_ID)
+);
+
+
+-- Indexes
+CREATE INDEX idx_fact_sales_product_id ON Fact_Sales(Product_ID);
+CREATE INDEX idx_fact_sales_customer_id ON Fact_Sales(Customer_ID);
+
+CREATE INDEX idx_fact_orders_product_id ON Fact_Orders(Product_ID);
+CREATE INDEX idx_fact_orders_customer_id ON Fact_Orders(Customer_ID);
+
+select * from Fact_orders
+
+--Function to Insert a New Product
+CREATE OR REPLACE FUNCTION InsertProduct(
+    p_Name VARCHAR,
+    p_Category VARCHAR,
+    p_Subcategory VARCHAR,
+    p_Brand VARCHAR,
+    p_Price DECIMAL(10, 2)
+)
+RETURNS VOID AS $$
+BEGIN
+    INSERT INTO Dim_Product (Name, Category, Subcategory, Brand, Price)
+    VALUES (p_Name, p_Category, p_Subcategory, p_Brand, p_Price);
+END;
+$$ LANGUAGE plpgsql;
+
+--Function to Update Customer Information with SCD Type 2
+CREATE OR REPLACE FUNCTION UpdateCustomer(
+    p_Customer_ID INTEGER,
+    p_NewName VARCHAR,
+    p_NewEmail VARCHAR
+)
+RETURNS VOID AS $$
+BEGIN
+    -- Mark the current record as non-current
+    UPDATE Dim_Customer
+    SET IsCurrent = FALSE
+    WHERE Customer_ID = p_Customer_ID AND IsCurrent = TRUE;
+
+    -- Insert a new record with the updated information
+    INSERT INTO Dim_Customer (Customer_ID, Name, Email, StartDate, IsCurrent)
+    VALUES (p_Customer_ID, p_NewName, p_NewEmail, CURRENT_DATE, TRUE);
+END;
+$$ LANGUAGE plpgsql;
